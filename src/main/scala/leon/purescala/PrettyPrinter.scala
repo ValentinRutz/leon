@@ -316,7 +316,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
       // Patterns
       case CaseClassPattern(bndr, cct, subps) =>
         bndr.foreach(b => sb.append(b + " @ "))
-        pp(cct, p)
+        pp(cct.id, p)
         sb.append("(")
         var c = 0
         val sz = subps.size

@@ -66,13 +66,20 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
       case Let(i,ex,b) =>
-        val first = le(ex)
-        if (isLiteral(first)) {
-          replace(Map(Variable(i) -> first), b)
+        if (isLiteral(ex)) {
+          replace(Map(Variable(i) -> ex), b)
         } else {
-          Let(i, first, b)
+          Let(i, le(ex), b)
         }
 
+      case FunctionInvocation(tfd, args) =>
+        if (args.forall(isLiteral) && tfd.hasBody) {
+          val argsMap = (tfd.params.map(_.id) zip args).toMap
+
+          replaceFromIDs(argsMap, tfd.body.get)
+        } else {
+          FunctionInvocation(tfd, args.map(le))
+        }
 
       case IfExpr(cond, thenn, elze) =>
         cond match {
