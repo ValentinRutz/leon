@@ -252,7 +252,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             val baseType = f.getType.asInstanceOf[SetType].base
             FiniteSet(newElems).setType(f.getType)
           }
-          case (le,re) => SetDifference(le(l), le(r))
+          case (l,r) => SetDifference(le(l), le(r))
         }
 
       case ElementOfSet(el,s) => (el, s) match {
