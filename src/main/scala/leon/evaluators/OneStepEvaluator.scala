@@ -261,7 +261,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       }
       case SubsetOf(s1,s2) => (s1, s2) match {
         case (f@FiniteSet(els1),FiniteSet(els2)) => BooleanLiteral(els1.toSet.subsetOf(els2.toSet))
-        case (l,r) => SubSetOf(le(l), le(r))
+        case (l,r) => SubsetOf(le(l), le(r))
       }
       case SetCardinality(s) =>
         s match {
