@@ -229,9 +229,52 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           case (l, r) => GreaterEquals(le(l), le(r))
         }
 
+      case SetUnion(s1,s2) =>
+        (s1, s2) match {
+          case (f@FiniteSet(els1),FiniteSet(els2)) => FiniteSet((els1 ++ els2).distinct).setType(f.getType)
+          case (l,r) => SetUnion(le(l), le(r))
+        }
+
+      case SetIntersection(s1,s2) =>
+        (s1, s2) match {
+          case (f @ FiniteSet(els1), FiniteSet(els2)) => {
+            val newElems = (els1.toSet intersect els2.toSet).toSeq
+            val baseType = f.getType.asInstanceOf[SetType].base
+            FiniteSet(newElems).setType(f.getType)
+          }
+          case (l,r) => SetIntersection(le(l), le(r))
+        }
+
+      case SetDifference(s1,s2) =>
+        (s1, s2) match {
+          case (f @ FiniteSet(els1),FiniteSet(els2)) => {
+            val newElems = (els1.toSet -- els2.toSet).toSeq
+            val baseType = f.getType.asInstanceOf[SetType].base
+            FiniteSet(newElems).setType(f.getType)
+          }
+          case (le,re) => SetDifference(le(l), le(r))
+        }
+
+      case ElementOfSet(el,s) => (el, s) match {
+        case (e, f @ FiniteSet(els)) => BooleanLiteral(els.contains(e))
+        case (l,r) => ElementOfSet(le(l), le(r))
+      }
+      case SubsetOf(s1,s2) => (s1, s2) match {
+        case (f@FiniteSet(els1),FiniteSet(els2)) => BooleanLiteral(els1.toSet.subsetOf(els2.toSet))
+        case (l,r) => SubSetOf(le(l), le(r))
+      }
+      case SetCardinality(s) =>
+        s match {
+          case FiniteSet(els) => IntLiteral(els.size)
+          case e => SetCardinality(le(e))
+        }
+
+      case f @ FiniteSet(els) => FiniteSet(els.map(le(_)).distinct).setType(f.getType)
+
       case e => e
 
       /*
+//TODO Preconditions and Postconditions
       case FunctionInvocation(tfd, args) =>
         if (gctx.stepsLeft < 0) {
           throw RuntimeError("Exceeded number of allocated methods calls ("+gctx.maxSteps+")")
@@ -273,53 +316,6 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
         callResult
-
-      case SetUnion(s1,s2) =>
-        (e(s1), e(s2)) match {
-          case (f@FiniteSet(els1),FiniteSet(els2)) => FiniteSet((els1 ++ els2).distinct).setType(f.getType)
-          case (le,re) => throw EvalError(typeErrorMsg(le, s1.getType))
-        }
-
-      case SetIntersection(s1,s2) =>
-        (e(s1), e(s2)) match {
-          case (f @ FiniteSet(els1), FiniteSet(els2)) => {
-            val newElems = (els1.toSet intersect els2.toSet).toSeq
-            val baseType = f.getType.asInstanceOf[SetType].base
-            FiniteSet(newElems).setType(f.getType)
-          }
-          case (le,re) => throw EvalError(typeErrorMsg(le, s1.getType))
-        }
-
-      case SetDifference(s1,s2) =>
-        (e(s1), e(s2)) match {
-          case (f @ FiniteSet(els1),FiniteSet(els2)) => {
-            val newElems = (els1.toSet -- els2.toSet).toSeq
-            val baseType = f.getType.asInstanceOf[SetType].base
-            FiniteSet(newElems).setType(f.getType)
-          }
-          case (le,re) => throw EvalError(typeErrorMsg(le, s1.getType))
-        }
-
-      case ElementOfSet(el,s) => (e(el), e(s)) match {
-        case (e, f @ FiniteSet(els)) => BooleanLiteral(els.contains(e))
-        case (l,r) => throw EvalError(typeErrorMsg(r, SetType(l.getType)))
-      }
-      case SubsetOf(s1,s2) => (e(s1), e(s2)) match {
-        case (f@FiniteSet(els1),FiniteSet(els2)) => BooleanLiteral(els1.toSet.subsetOf(els2.toSet))
-        case (le,re) => throw EvalError(typeErrorMsg(le, s1.getType))
-      }
-      case SetCardinality(s) =>
-        val sr = e(s)
-        sr match {
-          case FiniteSet(els) => IntLiteral(els.size)
-          case _ => throw EvalError(typeErrorMsg(sr, SetType(AnyType)))
-        }
-
-      case f @ FiniteSet(els) => FiniteSet(els.map(e(_)).distinct).setType(f.getType)
-
-      case other =>
-        context.reporter.error("Error: don't know how to handle " + other + " in Evaluator.")
-        throw EvalError("Unhandled case in Evaluator : " + other) 
         */
     }
     if (res != expr) {
