@@ -15,7 +15,10 @@ object Trees {
 
 
   /* EXPRESSIONS */
-  abstract class Expr extends Tree with Typed with Serializable
+  abstract class Expr extends Tree with Typed with Serializable {
+    var previousState: Option[Expr] = None
+    def hasPreviousState: Boolean = previousState.isDefined
+  }
 
   trait Terminal {
     self: Expr =>

@@ -75,7 +75,6 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       case FunctionInvocation(tfd, args) =>
         if (args.forall(isLiteral) && tfd.hasBody) {
           val argsMap = (tfd.params.map(_.id) zip args).toMap
-
           replaceFromIDs(argsMap, tfd.body.get)
         } else {
           FunctionInvocation(tfd, args.map(le))
@@ -270,11 +269,20 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
       case f @ FiniteSet(els) => FiniteSet(els.map(le(_)).distinct).setType(f.getType)
+      
+      case m @ MatchExpr(scrutinee, cases: Seq[MatchCase]) =>
+        if(!isLiteral(scrutinee)) {
+          MatchExpr(le(scrutinee), cases)
+        } else {
+          val ifThenElsedMatch = matchToIfThenElse(m)
+          e(e(ifThenElsedMatch))
+        }
 
       case e => e
 
       /*
-//TODO Preconditions and Postconditions
+      //TODO Preconditions and Postconditions
+      
       case FunctionInvocation(tfd, args) =>
         if (gctx.stepsLeft < 0) {
           throw RuntimeError("Exceeded number of allocated methods calls ("+gctx.maxSteps+")")
