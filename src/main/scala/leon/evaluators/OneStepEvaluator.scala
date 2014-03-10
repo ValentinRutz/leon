@@ -1,4 +1,4 @@
-/* Copyright 2009-2013 EPFL, Lausanne */
+/* Copyright 2011-2013 EPFL, Lausanne */
 
 package leon
 package evaluators
@@ -29,8 +29,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     def withVars(news: Map[Identifier, Expr]) = copy(news)
   }
 
-  class DefaultGlobalContext(var madeStep: Boolean, stepsLeft: Int) extends GlobalContext(stepsLeft) { }
-
+  class DefaultGlobalContext(var madeStep: Boolean, stepsLeft: Int) extends GlobalContext(stepsLeft) {}
 
   def le(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
     if (gctx.madeStep) {
@@ -48,7 +47,8 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     val res = expr match {
       case Variable(id) =>
         rctx.mappings.get(id) match {
-          case Some(v) => v
+          case Some(v) =>
+            v
           case None =>
             throw EvalError("No value for identifier " + id.name + " in mapping.")
         }
@@ -60,12 +60,12 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       case TupleSelect(t, i) =>
         le(t) match {
           case Tuple(ts) =>
-            ts(i-1)
+            ts(i - 1)
           case r =>
             r
         }
 
-      case Let(i,ex,b) =>
+      case Let(i, ex, b) =>
         if (isLiteral(ex)) {
           replace(Map(Variable(i) -> ex), b)
         } else {
@@ -98,7 +98,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             BooleanLiteral(false)
 
           case BooleanLiteral(true) =>
-            if(args.size == 1) {
+            if (args.size == 1) {
               BooleanLiteral(true)
             } else {
               And(args.tail)
@@ -112,7 +112,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           case BooleanLiteral(true) =>
             BooleanLiteral(true)
           case BooleanLiteral(false) =>
-            if(args.size == 1) {
+            if (args.size == 1) {
               BooleanLiteral(false)
             } else {
               Or(args.tail)
@@ -128,14 +128,14 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             Not(le(other))
         }
 
-      case Implies(l,r) =>
+      case Implies(l, r) =>
         (l, r) match {
           case (BooleanLiteral(b1), BooleanLiteral(b2)) => BooleanLiteral(!b1 || b2)
           case (l, r) =>
             Implies(le(l), le(r))
         }
 
-      case Iff(l,r) =>
+      case Iff(l, r) =>
         (l, r) match {
           case (BooleanLiteral(b1), BooleanLiteral(b2)) => BooleanLiteral(b1 == b2)
           case (l, r) =>
@@ -166,13 +166,13 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             CaseClassSelector(ct1, le(expr), sel)
         }
 
-      case Plus(l,r) =>
+      case Plus(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 + i2)
           case (l, r) => Plus(le(l), le(r))
         }
 
-      case Minus(l,r) =>
+      case Minus(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 - i2)
           case (l, r) => Minus(le(l), le(r))
@@ -184,83 +184,83 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           case r => UMinus(le(ex))
         }
 
-      case Times(l,r) =>
+      case Times(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 * i2)
           case (l, r) => Times(le(l), le(r))
         }
 
-      case Division(l,r) =>
+      case Division(l, r) =>
         (l, r) match {
           case (_, IntLiteral(i2)) if i2 == 0 => Error("Division by 0")
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 / i2)
           case (l, r) => Division(le(l), le(r))
         }
 
-      case Modulo(l,r) =>
+      case Modulo(l, r) =>
         (l, r) match {
           case (_, IntLiteral(i2)) if i2 == 0 => Error("Modulo by 0")
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 % i2)
           case (l, r) => Modulo(le(l), le(r))
         }
 
-      case LessThan(l,r) =>
+      case LessThan(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => BooleanLiteral(i1 < i2)
           case (l, r) => LessThan(le(l), le(r))
         }
 
-      case GreaterThan(l,r) =>
+      case GreaterThan(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => BooleanLiteral(i1 > i2)
           case (l, r) => GreaterThan(le(l), le(r))
         }
 
-      case LessEquals(l,r) =>
+      case LessEquals(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => BooleanLiteral(i1 <= i2)
           case (l, r) => LessEquals(le(l), le(r))
         }
 
-      case GreaterEquals(l,r) =>
+      case GreaterEquals(l, r) =>
         (l, r) match {
           case (IntLiteral(i1), IntLiteral(i2)) => BooleanLiteral(i1 >= i2)
           case (l, r) => GreaterEquals(le(l), le(r))
         }
 
-      case SetUnion(s1,s2) =>
+      case SetUnion(s1, s2) =>
         (s1, s2) match {
-          case (f@FiniteSet(els1),FiniteSet(els2)) => FiniteSet((els1 ++ els2).distinct).setType(f.getType)
-          case (l,r) => SetUnion(le(l), le(r))
+          case (f @ FiniteSet(els1), FiniteSet(els2)) => FiniteSet((els1 ++ els2).distinct).setType(f.getType)
+          case (l, r) => SetUnion(le(l), le(r))
         }
 
-      case SetIntersection(s1,s2) =>
+      case SetIntersection(s1, s2) =>
         (s1, s2) match {
           case (f @ FiniteSet(els1), FiniteSet(els2)) => {
             val newElems = (els1.toSet intersect els2.toSet).toSeq
             val baseType = f.getType.asInstanceOf[SetType].base
             FiniteSet(newElems).setType(f.getType)
           }
-          case (l,r) => SetIntersection(le(l), le(r))
+          case (l, r) => SetIntersection(le(l), le(r))
         }
 
-      case SetDifference(s1,s2) =>
+      case SetDifference(s1, s2) =>
         (s1, s2) match {
-          case (f @ FiniteSet(els1),FiniteSet(els2)) => {
+          case (f @ FiniteSet(els1), FiniteSet(els2)) => {
             val newElems = (els1.toSet -- els2.toSet).toSeq
             val baseType = f.getType.asInstanceOf[SetType].base
             FiniteSet(newElems).setType(f.getType)
           }
-          case (l,r) => SetDifference(le(l), le(r))
+          case (l, r) => SetDifference(le(l), le(r))
         }
 
-      case ElementOfSet(el,s) => (el, s) match {
+      case ElementOfSet(el, s) => (el, s) match {
         case (e, f @ FiniteSet(els)) => BooleanLiteral(els.contains(e))
-        case (l,r) => ElementOfSet(le(l), le(r))
+        case (l, r) => ElementOfSet(le(l), le(r))
       }
-      case SubsetOf(s1,s2) => (s1, s2) match {
-        case (f@FiniteSet(els1),FiniteSet(els2)) => BooleanLiteral(els1.toSet.subsetOf(els2.toSet))
-        case (l,r) => SubsetOf(le(l), le(r))
+      case SubsetOf(s1, s2) => (s1, s2) match {
+        case (f @ FiniteSet(els1), FiniteSet(els2)) => BooleanLiteral(els1.toSet.subsetOf(els2.toSet))
+        case (l, r) => SubsetOf(le(l), le(r))
       }
       case SetCardinality(s) =>
         s match {
@@ -269,13 +269,85 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
       case f @ FiniteSet(els) => FiniteSet(els.map(le(_)).distinct).setType(f.getType)
-      
+
       case m @ MatchExpr(scrutinee, cases: Seq[MatchCase]) =>
-        if(!isLiteral(scrutinee)) {
+        if (!isLiteral(scrutinee)) {
           MatchExpr(le(scrutinee), cases)
         } else {
-          val ifThenElsedMatch = matchToIfThenElse(m)
-          e(e(ifThenElsedMatch))
+          //TODO Finish matching
+          def checkPattern(pattern: Pattern, ex: Expr): Boolean = {
+            pattern match {
+              case InstanceOfPattern(Some(binder), ct) if (ex.getType == ct) =>
+                rctx.withNewVar(binder, ex)
+                true
+              case InstanceOfPattern(None, ct) if (ex.getType == ct) =>
+                true
+              case WildcardPattern(Some(binder)) =>
+                rctx.withNewVar(binder, ex)
+                true
+              case WildcardPattern(None) =>
+                true
+              case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct) =>
+                val cond = ex match {
+                  case CaseClass(_, args) =>
+                    assert(args.size == subPatterns.size)
+                    (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
+                  case _ => false
+                }
+                if (cond) {
+                  rctx.withNewVar(binder, ex)
+                  return true
+                }
+                false
+
+              case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
+                ex match {
+                  case CaseClass(_, args) =>
+                    assert(args.size == subPatterns.size)
+                    (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
+                  case _ => false
+                }
+              case TuplePattern(Some(binder), subPatterns) =>
+                val cond = ex match {
+                  case Tuple(exprs) if (exprs.size == subPatterns.size) =>
+                    (exprs zip subPatterns).forall(t => checkPattern(t._2, t._1))
+                  case _ => false
+                }
+                if (cond) {
+                  rctx.withNewVar(binder, ex)
+                  return true
+                }
+                false
+              case TuplePattern(None, subPatterns) =>
+                ex match {
+                  case Tuple(exprs) if (exprs.size == subPatterns.size) =>
+                    (exprs zip subPatterns).forall(t => checkPattern(t._2, t._1))
+                  case _ => false
+                }
+
+              case _ => throw EvalError("This case is not defined")
+            }
+          }
+
+          def checkMatchCase(c: MatchCase, ex: Expr): Boolean = c match {
+            case SimpleCase(pattern, rhs) =>
+              checkPattern(pattern, ex)
+            case gc @ GuardedCase(pattern, guard, rhs) =>
+              checkPattern(pattern, ex) && (super.e(guard) match {
+                case BooleanLiteral(true) => true
+                case BooleanLiteral(false) => false
+              })
+          }
+
+          def findMatchingCase(cases: Seq[MatchCase], ex: Expr): Expr = cases match {
+            case head :: tail if (!checkMatchCase(head, ex) && tail == Nil) =>
+              throw EvalError("No match corresponding to the expression: " + ex)
+            case head :: tail if (!checkMatchCase(head, ex)) => findMatchingCase(tail, ex)
+            case Seq(head) if (checkMatchCase(head, ex)) => head.rhs
+            case Nil => throw EvalError("No match corresponding to the expression: " + ex)
+          }
+
+          findMatchingCase(cases, scrutinee)
         }
 
       case e => e
@@ -327,6 +399,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         */
     }
     if (res != expr) {
+      res.previousState = Some(expr)
       gctx.madeStep = true
     }
     res

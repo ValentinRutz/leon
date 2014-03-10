@@ -32,6 +32,7 @@ class LastStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvalua
   class DefaultGlobalContext(var madeStep: Boolean, stepsLeft: Int) extends GlobalContext(stepsLeft) { }
 
   override def e(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = expr match {
-    case ex if expr.hasPreviousState => expr.previousState
+    case ex if expr.hasPreviousState => expr.previousState.get
     case ex => ex
   }
+}
