@@ -274,80 +274,62 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         if (!isLiteral(scrutinee)) {
           MatchExpr(le(scrutinee), cases)
         } else {
-          //TODO Finish matching
-          def checkPattern(pattern: Pattern, ex: Expr): Boolean = {
-            pattern match {
-              case InstanceOfPattern(Some(binder), ct) if (ex.getType == ct) =>
-                rctx.withNewVar(binder, ex)
-                true
-              case InstanceOfPattern(None, ct) if (ex.getType == ct) =>
-                true
-              case WildcardPattern(Some(binder)) =>
-                rctx.withNewVar(binder, ex)
-                true
-              case WildcardPattern(None) =>
-                true
-              case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct) =>
-                val cond = ex match {
-                  case CaseClass(_, args) =>
-                    assert(args.size == subPatterns.size)
-                    (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
-                  case _ => false
-                }
-                if (cond) {
-                  rctx.withNewVar(binder, ex)
-                  return true
-                }
-                false
-
-              case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
-                ex match {
-                  case CaseClass(_, args) =>
-                    assert(args.size == subPatterns.size)
-                    (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
-                  case _ => false
-                }
-              case TuplePattern(Some(binder), subPatterns) =>
-                val cond = ex match {
-                  case Tuple(exprs) if (exprs.size == subPatterns.size) =>
-                    (exprs zip subPatterns).forall(t => checkPattern(t._2, t._1))
-                  case _ => false
-                }
-                if (cond) {
-                  rctx.withNewVar(binder, ex)
-                  return true
-                }
-                false
-              case TuplePattern(None, subPatterns) =>
-                ex match {
-                  case Tuple(exprs) if (exprs.size == subPatterns.size) =>
-                    (exprs zip subPatterns).forall(t => checkPattern(t._2, t._1))
-                  case _ => false
-                }
-
-              case _ => throw EvalError("This case is not defined")
-            }
+          def checkSubPatterns(subPatterns: Seq[Pattern], ex: Expr): Boolean = ex match {
+            case CaseClass(_, args) =>
+              assert(args.size == subPatterns.size)
+              (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
+            case _ => false
           }
 
-          def checkMatchCase(c: MatchCase, ex: Expr): Boolean = c match {
-            case SimpleCase(pattern, rhs) =>
-              checkPattern(pattern, ex)
-            case gc @ GuardedCase(pattern, guard, rhs) =>
-              checkPattern(pattern, ex) && (super.e(guard) match {
-                case BooleanLiteral(true) => true
-                case BooleanLiteral(false) => false
-              })
+          def checkPattern(pattern: Pattern, ex: Expr): Boolean = pattern match {
+            case InstanceOfPattern(Some(binder), ct) if (ex.getType == ct) =>
+              rctx.withNewVar(binder, ex)
+              true
+            case InstanceOfPattern(None, ct) if (ex.getType == ct) =>
+              true
+            case WildcardPattern(Some(binder)) =>
+              rctx.withNewVar(binder, ex)
+              true
+            case WildcardPattern(None) =>
+              true
+            case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct && checkSubPatterns(subPatterns, ex)) =>
+              rctx.withNewVar(binder, ex)
+              true
+            case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
+              checkSubPatterns(subPatterns, ex)
+            case TuplePattern(Some(binder), subPatterns) if(checkSubPatterns(subPatterns, ex)) =>
+              rctx.withNewVar(binder, ex)
+              true
+            case TuplePattern(None, subPatterns) =>
+              checkSubPatterns(subPatterns, ex)
+            case _ => false
           }
 
-          def findMatchingCase(cases: Seq[MatchCase], ex: Expr): Expr = cases match {
-            case head :: tail if (!checkMatchCase(head, ex) && tail == Nil) =>
-              throw EvalError("No match corresponding to the expression: " + ex)
-            case head :: tail if (!checkMatchCase(head, ex)) => findMatchingCase(tail, ex)
-            case Seq(head) if (checkMatchCase(head, ex)) => head.rhs
-            case Nil => throw EvalError("No match corresponding to the expression: " + ex)
+          def checkMatchCase(c: MatchCase, ex: Expr): MatchCase = c match {
+            case sc @ SimpleCase(pattern, rhs) if (checkPattern(pattern, ex)) =>
+              sc
+            case GuardedCase(pattern, guard, rhs) if (checkPattern(pattern, ex)) =>
+              le(guard) match {
+                case BooleanLiteral(true) => SimpleCase(pattern, rhs)
+                case BooleanLiteral(false) => null
+                case g => GuardedCase(pattern, g, rhs)
+              }
+            case _ => null
           }
 
-          findMatchingCase(cases, scrutinee)
+          def findMatchingCases(cases: Seq[MatchCase], ex: Expr, matchingCases: Seq[MatchCase]): Seq[MatchCase] = cases match {
+            case head :: tail =>
+              val evalCase = checkMatchCase(head, ex)
+              findMatchingCases(tail, ex, matchingCases ++ (if (evalCase != null) Seq(evalCase) else Nil))
+            case Nil => Nil
+          }
+
+          findMatchingCases(cases, scrutinee, Seq()) match {
+            case Nil => throw new EvalError("The expression " + scrutinee + " has no match.")
+            case Seq(matchingCase) => matchingCase.rhs
+            case severalCases => MatchExpr(scrutinee, severalCases)
+          }
+
         }
 
       case e => e
