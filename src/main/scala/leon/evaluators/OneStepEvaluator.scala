@@ -8,9 +8,7 @@ import purescala.Definitions._
 import purescala.TreeOps._
 import purescala.Trees._
 import purescala.TypeTrees._
-
 import solvers.TimeoutSolver
-
 import xlang.Trees._
 
 class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluator(ctx, prog) {
@@ -72,22 +70,48 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           Let(i, le(ex), b)
         }
 
-      case FunctionInvocation(tfd, args) =>
-        if (args.forall(isLiteral) && tfd.hasBody) {
-          val argsMap = (tfd.params.map(_.id) zip args).toMap
-          replaceFromIDs(argsMap, tfd.body.get)
-        } else {
+      case fi @ FunctionInvocation(tfd, args) =>
+        if (args.size != 0 && !args.forall(isLiteral)) {
           FunctionInvocation(tfd, args.map(le))
+        } else {
+          le(PEFunction(tfd, None, tfd.body, tfd.postcondition))
+        }
+
+      case PEFunction(tfd, precond, body, postcond) =>
+        (precond, body, postcond) match {
+          case (None, Some(body), None) => le(body)
+          case (Some(pre), Some(b), _) =>
+            pre match {
+              case BooleanLiteral(true) =>
+                PEFunction(tfd, None, body, postcond)
+              case BooleanLiteral(false) =>
+                throw new EvalError("Precondition violation for " +
+                    tfd.id.name + " reached in evaluation.: " + tfd.precondition.get)
+              case other =>
+                PEFunction(tfd, Some(le(pre)), body, postcond)
+            }
+          case (None, Some(b), Some(post)) if (isLiteral(b)) =>
+            replaceFromIDs(Map(post._1 -> b), post._2)
+            val newPostcondition = le(post._2) match {
+              case BooleanLiteral(true) => None
+              case BooleanLiteral(false) =>
+                throw EvalError("Postcondition violation for " + tfd.id.name + " reached in evaluation.")
+              case other => Some((post._1, other))
+            }
+            PEFunction(tfd, None, body, newPostcondition)
+          case (None, Some(b), _) =>
+            PEFunction(tfd, None, Some(le(b)), postcond)
+          case _ =>
+            throw new EvalError("Function " + tfd.fd.id.name + " doesn't have a body")
+
         }
 
       case IfExpr(cond, thenn, elze) =>
         cond match {
           case BooleanLiteral(true) =>
             thenn
-
           case BooleanLiteral(false) =>
             elze
-
           case _ =>
             IfExpr(le(cond), thenn, elze)
         }
@@ -297,7 +321,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
               true
             case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
               checkSubPatterns(subPatterns, ex)
-            case TuplePattern(Some(binder), subPatterns) if(checkSubPatterns(subPatterns, ex)) =>
+            case TuplePattern(Some(binder), subPatterns) if (checkSubPatterns(subPatterns, ex)) =>
               rctx.withNewVar(binder, ex)
               true
             case TuplePattern(None, subPatterns) =>
@@ -333,52 +357,6 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
       case e => e
-
-      /*
-      //TODO Preconditions and Postconditions
-      
-      case FunctionInvocation(tfd, args) =>
-        if (gctx.stepsLeft < 0) {
-          throw RuntimeError("Exceeded number of allocated methods calls ("+gctx.maxSteps+")")
-        }
-        gctx.stepsLeft -= 1
-
-        val evArgs = args.map(a => e(a))
-
-        // build a mapping for the function...
-        val frame = rctx.withVars((tfd.params.map(_.id) zip evArgs).toMap)
-        
-        if(tfd.hasPrecondition) {
-          e(matchToIfThenElse(tfd.precondition.get))(frame, gctx) match {
-            case BooleanLiteral(true) =>
-            case BooleanLiteral(false) =>
-              throw RuntimeError("Precondition violation for " + tfd.id.name + " reached in evaluation.: " + tfd.precondition.get)
-            case other => throw RuntimeError(typeErrorMsg(other, BooleanType))
-          }
-        }
-
-        if(!tfd.hasBody && !rctx.mappings.isDefinedAt(tfd.id)) {
-          throw EvalError("Evaluation of function with unknown implementation.")
-        }
-
-        val body = tfd.body.getOrElse(rctx.mappings(tfd.id))
-        val callResult = e(matchToIfThenElse(body))(frame, gctx)
-
-        if(tfd.hasPostcondition) {
-          val (id, post) = tfd.postcondition.get
-
-          val freshResID = FreshIdentifier("result").setType(tfd.returnType)
-          val postBody = replace(Map(Variable(id) -> Variable(freshResID)), matchToIfThenElse(post))
-
-          e(matchToIfThenElse(post))(frame.withNewVar(id, callResult), gctx) match {
-            case BooleanLiteral(true) =>
-            case BooleanLiteral(false) => throw RuntimeError("Postcondition violation for " + tfd.id.name + " reached in evaluation.")
-            case other => throw EvalError(typeErrorMsg(other, BooleanType))
-          }
-        }
-
-        callResult
-        */
     }
     if (res != expr) {
       res.previousState = Some(expr)

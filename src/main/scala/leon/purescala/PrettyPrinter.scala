@@ -275,6 +275,29 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         sb.append("else")
         nl(lvl+1)
         pp(e, p)(lvl+1)
+        
+      case PEFunction(tfd, pre, body, post) =>
+        val postDef = post.isDefined
+        if(postDef) {
+          sb.append("(")
+        }
+        if(pre.isDefined) {
+          sb.append("require(")
+          pp(pre.get, p)
+          sb.append(")")
+          nl
+        }
+        if(body.isDefined) {
+          pp(body.get, p)
+        }
+        if(postDef) {
+          sb.append(") ensuring(")
+          pp(post.get._1, p)
+          sb.append(" => ")
+          pp(post.get._2, p)
+          sb.append(")")
+        }
+          
 
       case mex @ MatchExpr(s, csc) =>
         pp(s, p)
