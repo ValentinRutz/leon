@@ -70,40 +70,28 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           Let(i, le(ex), b)
         }
 
-      case fi @ FunctionInvocation(tfd, args) =>
-        if (args.size != 0 && !args.forall(isLiteral)) {
-          FunctionInvocation(tfd, args.map(le))
+      case FunctionInvocation(tfd, args) =>
+        if (args.forall(isLiteral)) {
+          if (tfd.hasBody) {
+            var body: Expr = replaceFromIDs((tfd.params.map(_.id) zip args).toMap, tfd.body.get)
+            if (tfd.hasPostcondition) {
+              val freshID = FreshIdentifier("result").setType(tfd.returnType)
+              val checkPost =
+                IfExpr(replaceFromIDs(Map(tfd.postcondition.get._1 -> Variable(freshID)), tfd.postcondition.get._2),
+                  Variable(freshID), new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
+              body = Let(freshID, body, checkPost)
+            }
+            if (tfd.hasPrecondition) {
+              val argsMap = (tfd.params.map(_.id) zip args).toMap
+              body = IfExpr(replaceFromIDs(argsMap, tfd.precondition.get), replaceFromIDs(argsMap, body),
+                new Error("Violation of the precondition of " + tfd.fd.id.name).setType(tfd.returnType))
+            }
+            body
+          } else {
+            throw new EvalError("function %s has no body".format(tfd.fd.id.name))
+          }
         } else {
-          le(PEFunction(tfd, None, tfd.body, tfd.postcondition))
-        }
-
-      case PEFunction(tfd, precond, body, postcond) =>
-        (precond, body, postcond) match {
-          case (None, Some(body), None) => le(body)
-          case (Some(pre), Some(b), _) =>
-            pre match {
-              case BooleanLiteral(true) =>
-                PEFunction(tfd, None, body, postcond)
-              case BooleanLiteral(false) =>
-                throw new EvalError("Precondition violation for " +
-                    tfd.id.name + " reached in evaluation.: " + tfd.precondition.get)
-              case other =>
-                PEFunction(tfd, Some(le(pre)), body, postcond)
-            }
-          case (None, Some(b), Some(post)) if (isLiteral(b)) =>
-            replaceFromIDs(Map(post._1 -> b), post._2)
-            val newPostcondition = le(post._2) match {
-              case BooleanLiteral(true) => None
-              case BooleanLiteral(false) =>
-                throw EvalError("Postcondition violation for " + tfd.id.name + " reached in evaluation.")
-              case other => Some((post._1, other))
-            }
-            PEFunction(tfd, None, body, newPostcondition)
-          case (None, Some(b), _) =>
-            PEFunction(tfd, None, Some(le(b)), postcond)
-          case _ =>
-            throw new EvalError("Function " + tfd.fd.id.name + " doesn't have a body")
-
+          FunctionInvocation(tfd, args.map(le))
         }
 
       case IfExpr(cond, thenn, elze) =>
@@ -294,6 +282,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
       case f @ FiniteSet(els) => FiniteSet(els.map(le(_)).distinct).setType(f.getType)
 
+      //TODO Replace matching patterns in right hand side of case
       case m @ MatchExpr(scrutinee, cases: Seq[MatchCase]) =>
         if (!isLiteral(scrutinee)) {
           MatchExpr(le(scrutinee), cases)
@@ -341,17 +330,19 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             case _ => null
           }
 
-          def findMatchingCases(cases: Seq[MatchCase], ex: Expr, matchingCases: Seq[MatchCase]): Seq[MatchCase] = cases match {
+          def findMatchingCases(cases: Seq[MatchCase], ex: Expr): Seq[MatchCase] = cases match {
             case head :: tail =>
               val evalCase = checkMatchCase(head, ex)
-              findMatchingCases(tail, ex, matchingCases ++ (if (evalCase != null) Seq(evalCase) else Nil))
+              if(evalCase != null)
+                Seq(evalCase)
+              else
+                findMatchingCases(tail, ex)
             case Nil => Nil
           }
 
-          findMatchingCases(cases, scrutinee, Seq()) match {
+          findMatchingCases(cases, scrutinee) match {
             case Nil => throw new EvalError("The expression " + scrutinee + " has no match.")
-            case Seq(matchingCase) => matchingCase.rhs
-            case severalCases => MatchExpr(scrutinee, severalCases)
+            case Seq(matchingCase: MatchCase) => matchingCase.rhs
           }
 
         }

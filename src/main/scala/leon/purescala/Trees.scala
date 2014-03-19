@@ -66,11 +66,6 @@ object Trees {
   case class FunctionInvocation(tfd: TypedFunDef, args: Seq[Expr]) extends Expr with FixedType {
     val fixedType = tfd.returnType
   }
-  
-  //Represents a partially evaluated function. Useful for the Tutor mode
-  case class PEFunction(tfd: TypedFunDef, precond: Option[Expr], body: Option[Expr], postcond: Option[(Identifier,Expr)]) extends Expr with FixedType {
-    val fixedType=tfd.returnType
-  }
 
   case class MethodInvocation(rec: Expr, cd: ClassDef, tfd: TypedFunDef, args: Seq[Expr]) extends Expr with FixedType {
     val fixedType = {

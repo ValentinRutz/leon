@@ -12,8 +12,10 @@ import utils._
 
 import java.lang.StringBuffer
 
-/** This pretty-printer uses Unicode for some operators, to make sure we
- * distinguish PureScala from "real" Scala (and also because it's cute). */
+/**
+ * This pretty-printer uses Unicode for some operators, to make sure we
+ * distinguish PureScala from "real" Scala (and also because it's cute).
+ */
 class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffer) {
   override def toString = sb.toString
 
@@ -37,7 +39,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
     sb.append(op2)
   }
 
-  def ppBinary(left: Tree, right: Tree, op: String)(implicit  parent: Option[Tree], lvl: Int) {
+  def ppBinary(left: Tree, right: Tree, op: String)(implicit parent: Option[Tree], lvl: Int) {
     sb.append("(")
     pp(left, parent)
     sb.append(op)
@@ -45,13 +47,13 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
     sb.append(")")
   }
 
-  def ppNary(exprs: Seq[Tree], pre: String, op: String, post: String)(implicit  parent: Option[Tree], lvl: Int) {
+  def ppNary(exprs: Seq[Tree], pre: String, op: String, post: String)(implicit parent: Option[Tree], lvl: Int) {
     sb.append(pre)
     val sz = exprs.size
     var c = 0
 
     exprs.foreach(ex => {
-      pp(ex, parent) ; c += 1 ; if(c < sz) sb.append(op)
+      pp(ex, parent); c += 1; if (c < sz) sb.append(op)
     })
 
     sb.append(post)
@@ -79,50 +81,50 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
           pp(id, p)
         }
 
-      case LetTuple(bs,d,e) =>
+      case LetTuple(bs, d, e) =>
         sb.append("(let ")
         ppNary(bs, "(", ",", " :=");
         pp(d, p)
         sb.append(") in")
-        nl(lvl+1)
-        pp(e, p)(lvl+1)
+        nl(lvl + 1)
+        pp(e, p)(lvl + 1)
         sb.append(")")
 
-      case Let(b,d,e) =>
+      case Let(b, d, e) =>
         sb.append("(let (")
         pp(b, p)
         sb.append(" := ");
         pp(d, p)
         sb.append(") in")
-        nl(lvl+1)
-        pp(e, p)(lvl+1)
+        nl(lvl + 1)
+        pp(e, p)(lvl + 1)
         sb.append(")")
 
-      case LetDef(fd,body) =>
+      case LetDef(fd, body) =>
         sb.append("\n")
-        pp(fd, p)(lvl+1)
+        pp(fd, p)(lvl + 1)
         sb.append("\n")
         sb.append("\n")
         nl
         pp(body, p)
 
-      case And(exprs) => ppNary(exprs, "(", " \u2227 ", ")")            // \land
-      case Or(exprs) => ppNary(exprs, "(", " \u2228 ", ")")             // \lor
-      case Not(Equals(l, r)) => ppBinary(l, r, " \u2260 ")    // \neq
-      case Iff(l,r) => ppBinary(l, r, " <=> ")              
-      case Implies(l,r) => ppBinary(l, r, " ==> ")              
+      case And(exprs) => ppNary(exprs, "(", " \u2227 ", ")") // \land
+      case Or(exprs) => ppNary(exprs, "(", " \u2228 ", ")") // \lor
+      case Not(Equals(l, r)) => ppBinary(l, r, " \u2260 ") // \neq
+      case Iff(l, r) => ppBinary(l, r, " <=> ")
+      case Implies(l, r) => ppBinary(l, r, " ==> ")
       case UMinus(expr) => ppUnary(expr, "-(", ")")
-      case Equals(l,r) => ppBinary(l, r, " == ")
+      case Equals(l, r) => ppBinary(l, r, " == ")
       case IntLiteral(v) => sb.append(v)
       case BooleanLiteral(v) => sb.append(v)
       case StringLiteral(s) => sb.append("\"" + s + "\"")
       case UnitLiteral() => sb.append("()")
       case GenericValue(tp, id) =>
         pp(tp, p)
-        sb.append("#"+id)
+        sb.append("#" + id)
 
-      case t@Tuple(exprs) => ppNary(exprs, "(", ", ", ")")
-      case s@TupleSelect(t, i) =>
+      case t @ Tuple(exprs) => ppNary(exprs, "(", ", ", ")")
+      case s @ TupleSelect(t, i) =>
         pp(t, p)
         sb.append("._" + i)
 
@@ -131,7 +133,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         pp(h.getType, p)
         sb.append("]")
 
-      case c@Choose(vars, pred) =>
+      case c @ Choose(vars, pred) =>
         sb.append("choose(")
         ppNary(vars, "", ", ", "")
         sb.append(" => ")
@@ -177,49 +179,54 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
 
         ppNary(args, "(", ", ", ")")
 
-      case Plus(l,r) => ppBinary(l, r, " + ")
-      case Minus(l,r) => ppBinary(l, r, " - ")
-      case Times(l,r) => ppBinary(l, r, " * ")
-      case Division(l,r) => ppBinary(l, r, " / ")
-      case Modulo(l,r) => ppBinary(l, r, " % ")
-      case LessThan(l,r) => ppBinary(l, r, " < ")
-      case GreaterThan(l,r) => ppBinary(l, r, " > ")
-      case LessEquals(l,r) => ppBinary(l, r, " \u2264 ")      // \leq
-      case GreaterEquals(l,r) => ppBinary(l, r, " \u2265 ")   // \geq
-      case FiniteSet(rs) => if(rs.isEmpty) sb.append("\u2205") /* Ø */ else ppNary(rs, "{", ", ", "}")
+      case Plus(l, r) => ppBinary(l, r, " + ")
+      case Minus(l, r) => ppBinary(l, r, " - ")
+      case Times(l, r) => ppBinary(l, r, " * ")
+      case Division(l, r) => ppBinary(l, r, " / ")
+      case Modulo(l, r) => ppBinary(l, r, " % ")
+      case LessThan(l, r) => ppBinary(l, r, " < ")
+      case GreaterThan(l, r) => ppBinary(l, r, " > ")
+      case LessEquals(l, r) => ppBinary(l, r, " \u2264 ") // \leq
+      case GreaterEquals(l, r) => ppBinary(l, r, " \u2265 ") // \geq
+      case FiniteSet(rs) => if (rs.isEmpty) sb.append("\u2205") /* Ø */ else ppNary(rs, "{", ", ", "}")
       case FiniteMultiset(rs) => ppNary(rs, "{|", ", ", "|}")
-      case EmptyMultiset(_) => sb.append("\u2205")                     // Ø
-      case Not(ElementOfSet(s,e)) => ppBinary(s, e, " \u2209 ") // \notin
-      case ElementOfSet(s,e) => ppBinary(s, e, " \u2208 ")    // \in
-      case SubsetOf(l,r) => ppBinary(l, r, " \u2286 ")        // \subseteq
-      case Not(SubsetOf(l,r)) => ppBinary(l, r, " \u2288 ")        // \notsubseteq
-      case SetMin(s) => pp(s, p); sb.append(".min")
-      case SetMax(s) => pp(s, p); sb.append(".max")
-      case SetUnion(l,r) => ppBinary(l, r, " \u222A ")        // \cup
-      case MultisetUnion(l,r) => ppBinary(l, r, " \u222A ")   // \cup
-      case MapUnion(l,r) => ppBinary(l, r, " \u222A ")        // \cup
-      case SetDifference(l,r) => ppBinary(l, r, " \\ ") 
-      case MultisetDifference(l,r) => ppBinary(l, r, " \\ ")       
-      case SetIntersection(l,r) => ppBinary(l, r, " \u2229 ") // \cap
-      case MultisetIntersection(l,r) => ppBinary(l, r, " \u2229 ") // \cap
+      case EmptyMultiset(_) => sb.append("\u2205") // Ø
+      case Not(ElementOfSet(s, e)) => ppBinary(s, e, " \u2209 ") // \notin
+      case ElementOfSet(s, e) => ppBinary(s, e, " \u2208 ") // \in
+      case SubsetOf(l, r) => ppBinary(l, r, " \u2286 ") // \subseteq
+      case Not(SubsetOf(l, r)) => ppBinary(l, r, " \u2288 ") // \notsubseteq
+      case SetMin(s) =>
+        pp(s, p); sb.append(".min")
+      case SetMax(s) =>
+        pp(s, p); sb.append(".max")
+      case SetUnion(l, r) => ppBinary(l, r, " \u222A ") // \cup
+      case MultisetUnion(l, r) => ppBinary(l, r, " \u222A ") // \cup
+      case MapUnion(l, r) => ppBinary(l, r, " \u222A ") // \cup
+      case SetDifference(l, r) => ppBinary(l, r, " \\ ")
+      case MultisetDifference(l, r) => ppBinary(l, r, " \\ ")
+      case SetIntersection(l, r) => ppBinary(l, r, " \u2229 ") // \cap
+      case MultisetIntersection(l, r) => ppBinary(l, r, " \u2229 ") // \cap
       case SetCardinality(t) => ppUnary(t, "|", "|")
       case MultisetCardinality(t) => ppUnary(t, "|", "|")
-      case MultisetPlus(l,r) => ppBinary(l, r, " \u228E ")    // U+
-      case MultisetToSet(e) => pp(e, p); sb.append(".toSet")
+      case MultisetPlus(l, r) => ppBinary(l, r, " \u228E ") // U+
+      case MultisetToSet(e) =>
+        pp(e, p); sb.append(".toSet")
       case FiniteMap(rs) =>
         sb.append("{")
         val sz = rs.size
         var c = 0
-        rs.foreach{case (k, v) => {
-          pp(k, p); sb.append(" -> "); pp(v, p); c += 1 ; if(c < sz) sb.append(", ")
-        }}
+        rs.foreach {
+          case (k, v) => {
+            pp(k, p); sb.append(" -> "); pp(v, p); c += 1; if (c < sz) sb.append(", ")
+          }
+        }
         sb.append("}")
 
-      case MapGet(m,k) =>
+      case MapGet(m, k) =>
         pp(m, p)
         ppNary(Seq(k), "(", ",", ")")
 
-      case MapIsDefinedAt(m,k) =>
+      case MapIsDefinedAt(m, k) =>
         pp(m, p)
         sb.append(".isDefinedAt")
         ppNary(Seq(k), "(", ",", ")")
@@ -228,90 +235,67 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         pp(a, p)
         sb.append(".length")
 
-      case ArrayClone(a) => 
+      case ArrayClone(a) =>
         pp(a, p)
         sb.append(".clone")
 
-      case fill@ArrayFill(size, v) => 
+      case fill @ ArrayFill(size, v) =>
         sb.append("Array.fill(")
         pp(size, p)
         sb.append(")(")
         pp(v, p)
         sb.append(")")
 
-      case am@ArrayMake(v) =>
+      case am @ ArrayMake(v) =>
         sb.append("Array.make(")
         pp(v, p)
         sb.append(")")
 
-      case sel@ArraySelect(ar, i) =>
+      case sel @ ArraySelect(ar, i) =>
         pp(ar, p)
         sb.append("(")
         pp(i, p)
         sb.append(")")
 
-      case up@ArrayUpdated(ar, i, v) =>
+      case up @ ArrayUpdated(ar, i, v) =>
         pp(ar, p)
         sb.append(".updated(")
         pp(i, p)
         sb.append(", ")
         pp(v, p)
         sb.append(")")
-      
+
       case FiniteArray(exprs) =>
         ppNary(exprs, "Array(", ", ", ")")
 
       case Distinct(exprs) =>
         sb.append("distinct")
         ppNary(exprs, "(", ", ", ")")
-      
+
       case IfExpr(c, t, e) =>
         sb.append("if (")
         pp(c, p)
         sb.append(")")
-        nl(lvl+1)
-        pp(t, p)(lvl+1)
+        nl(lvl + 1)
+        pp(t, p)(lvl + 1)
         nl
         sb.append("else")
-        nl(lvl+1)
-        pp(e, p)(lvl+1)
-        
-      case PEFunction(tfd, pre, body, post) =>
-        val postDef = post.isDefined
-        if(postDef) {
-          sb.append("(")
-        }
-        if(pre.isDefined) {
-          sb.append("require(")
-          pp(pre.get, p)
-          sb.append(")")
-          nl
-        }
-        if(body.isDefined) {
-          pp(body.get, p)
-        }
-        if(postDef) {
-          sb.append(") ensuring(")
-          pp(post.get._1, p)
-          sb.append(" => ")
-          pp(post.get._2, p)
-          sb.append(")")
-        }
-          
+        nl(lvl + 1)
+        pp(e, p)(lvl + 1)
 
       case mex @ MatchExpr(s, csc) =>
         pp(s, p)
         sb.append(" match {\n")
 
         csc.foreach(cs => {
-          nl(lvl+1)
+          nl(lvl + 1)
           pp(cs, p)
           sb.append("\n")
         })
         nl(lvl)
         sb.append("}")
 
-      case Not(expr) => ppUnary(expr, "\u00AC(", ")")               // \neg
+      case Not(expr) => ppUnary(expr, "\u00AC(", ")") // \neg
 
       case e @ Error(desc) =>
         sb.append("error(\"" + desc + "\")[")
@@ -322,36 +306,38 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
 
       // Cases
       case SimpleCase(pat, rhs) =>
-          sb.append("case ")
-          pp(pat, p)
-          sb.append(" =>\n")
-          ind(lvl+1)
-          pp(rhs, p)(lvl+1)
+        sb.append("case ")
+        pp(pat, p)
+        sb.append(" =>\n")
+        ind(lvl + 1)
+        pp(rhs, p)(lvl + 1)
       case GuardedCase(pat, guard, rhs) =>
-          sb.append("case ")
-          pp(pat, p)
-          sb.append(" if ")
-          pp(guard, p)
-          sb.append(" =>\n")
-          ind(lvl+1)
-          pp(rhs, p)(lvl+1)
+        sb.append("case ")
+        pp(pat, p)
+        sb.append(" if ")
+        pp(guard, p)
+        sb.append(" =>\n")
+        ind(lvl + 1)
+        pp(rhs, p)(lvl + 1)
 
       // Patterns
       case CaseClassPattern(bndr, cct, subps) =>
         bndr.foreach(b => sb.append(b + " @ "))
         pp(cct.id, p)
-        sb.append("(")
-        var c = 0
-        val sz = subps.size
-        subps.foreach(sp => {
-          pp(sp, p)
-          if(c < sz - 1)
-            sb.append(", ")
-          c = c + 1
-        })
-        sb.append(")")
+        if (!cct.classDef.isCaseObject && cct.classDef.tparams.size == 0) {
+          sb.append("(")
+          var c = 0
+          val sz = subps.size
+          subps.foreach(sp => {
+            pp(sp, p)
+            if (c < sz - 1)
+              sb.append(", ")
+            c = c + 1
+          })
+          sb.append(")")
+        }
 
-      case WildcardPattern(None)     => sb.append("_")
+      case WildcardPattern(None) => sb.append("_")
       case WildcardPattern(Some(id)) => pp(id, p)
       case InstanceOfPattern(bndr, cct) =>
         bndr.foreach(b => sb.append(b + " : "))
@@ -367,7 +353,6 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         pp(subPatterns.last, p)
         sb.append(")")
 
-
       // Types
       case Untyped => sb.append("<untyped>")
       case UnitType => sb.append("Unit")
@@ -381,7 +366,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         sb.append("Set[")
         pp(bt, p)
         sb.append("]")
-      case MapType(ft,tt) =>
+      case MapType(ft, tt) =>
         sb.append("Map[")
         pp(ft, p)
         sb.append(",")
@@ -407,7 +392,6 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
           ppNary(c.tps, "[", ",", "]")
         }
 
-
       // Definitions
       case Program(id, modules) =>
         assert(lvl == 0)
@@ -415,7 +399,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         pp(id, p)
         sb.append(" {\n")
         modules.foreach {
-          m => pp(m, p)(lvl+1)
+          m => pp(m, p)(lvl + 1)
         }
         sb.append("}\n")
 
@@ -429,8 +413,8 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         val sz = defs.size
 
         defs.foreach(df => {
-          pp(df, p)(lvl+1)
-          if(c < sz - 1) {
+          pp(df, p)(lvl + 1)
+          if (c < sz - 1) {
             sb.append("\n\n")
           }
           c = c + 1
@@ -447,7 +431,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
           ppNary(tparams, "[", ",", "]")
         }
 
-        parent.foreach{ par =>
+        parent.foreach { par =>
           sb.append(" extends ")
           pp(par.id, p)
         }
@@ -455,8 +439,8 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         if (acd.methods.nonEmpty) {
           sb.append(" {\n")
           for (md <- acd.methods) {
-            ind(lvl+1)
-            pp(md, p)(lvl+1)
+            ind(lvl + 1)
+            pp(md, p)(lvl + 1)
             sb.append("\n\n")
           }
           ind
@@ -480,7 +464,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
           ppNary(ccd.fields, "(", ", ", ")")
         }
 
-        parent.foreach{ par =>
+        parent.foreach { par =>
           sb.append(" extends ")
           pp(par.id, p)
         }
@@ -488,8 +472,8 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         if (ccd.methods.nonEmpty) {
           sb.append(" {\n")
           for (md <- ccd.methods) {
-            ind(lvl+1)
-            pp(md, p)(lvl+1)
+            ind(lvl + 1)
+            pp(md, p)(lvl + 1)
             sb.append("\n\n")
           }
           ind
@@ -505,7 +489,7 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
         ppNary(tfd.tps, "[", ", ", "]")
 
       case fd: FunDef =>
-        for(a <- fd.annotations) {
+        for (a <- fd.annotations) {
           ind
           sb.append("@" + a + "\n")
         }
@@ -517,14 +501,16 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
           sb.append("\n")
         })
 
-        fd.postcondition.foreach{ case (id, postc) => {
-          ind
-          sb.append("@post: ")
-          pp(id, p)
-          sb.append(" => ")
-          pp(postc, p)(lvl)
-          sb.append("\n")
-        }}
+        fd.postcondition.foreach {
+          case (id, postc) => {
+            ind
+            sb.append("@post: ")
+            pp(id, p)
+            sb.append(" => ")
+            pp(postc, p)(lvl)
+            sb.append("\n")
+          }
+        }
 
         ind
         sb.append("def ")
@@ -533,13 +519,13 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
 
         val sz = fd.params.size
         var c = 0
-        
+
         fd.params.foreach(arg => {
           sb.append(arg.id)
           sb.append(" : ")
           pp(arg.tpe, p)
 
-          if(c < sz - 1) {
+          if (c < sz - 1) {
             sb.append(", ")
           }
           c = c + 1
@@ -567,13 +553,28 @@ class PrettyPrinter(opts: PrinterOptions, val sb: StringBuffer = new StringBuffe
     if (opts.printPositions) {
       ppos(tree.getPos)
     }
+
+    def isLiteral(e: Expr): Boolean = e match {
+      case Variable(_) => false
+      case Tuple(ts) =>
+        ts.forall(isLiteral)
+
+      case CaseClass(cct, args) =>
+        args.forall(isLiteral)
+
+      case t: Terminal =>
+        true
+
+      case _ =>
+        false
+    }
   }
 
   def ppos(p: Position) = p match {
     case op: OffsetPosition =>
-      sb.append("@"+op.toString)
+      sb.append("@" + op.toString)
     case rp: RangePosition =>
-      sb.append("@"+rp.focusBegin.toString+"--"+rp.focusEnd.toString)
+      sb.append("@" + rp.focusBegin.toString + "--" + rp.focusEnd.toString)
     case _ =>
   }
 }

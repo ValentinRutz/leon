@@ -17,7 +17,7 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
 
   import java.lang.StringBuffer
 
-  override def ppBinary(left: Tree, right: Tree, op: String)(implicit  parent: Option[Tree], lvl: Int) {
+  override def ppBinary(left: Tree, right: Tree, op: String)(implicit parent: Option[Tree], lvl: Int) {
     pp(left, parent)
     sb.append(op)
     pp(right, parent)
@@ -39,9 +39,9 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
       val rp = requiresBraces(tree, parent)
       if (rp) {
         sb.append("{\n")
-        ind(lvl+1)
+        ind(lvl + 1)
 
-        body(lvl+1)
+        body(lvl + 1)
 
         sb.append("\n")
         ind(lvl)
@@ -54,16 +54,16 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
     var printPos = opts.printPositions
 
     tree match {
-      case LetTuple(ids,d,e) =>
+      case LetTuple(ids, d, e) =>
         optBraces { implicit lvl =>
-          sb.append("val (" )
+          sb.append("val (")
           for (((id, tpe), i) <- ids.map(id => (id, id.getType)).zipWithIndex) {
-              pp(id, p)
-              sb.append(": ")
-              pp(tpe, p)
-              if (i != ids.size-1) {
-                  sb.append(", ")
-              }
+            pp(id, p)
+            sb.append(": ")
+            pp(tpe, p)
+            if (i != ids.size - 1) {
+              sb.append(", ")
+            }
           }
           sb.append(") = ")
           pp(d, p)
@@ -73,7 +73,7 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
           sb.append("\n")
         }
 
-      case Let(b,d,e) =>
+      case Let(b, d, e) =>
         optBraces { implicit lvl =>
           sb.append("val " + b + " = ")
           pp(d, p)
@@ -92,36 +92,36 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
           pp(body, p)
         }
 
-      case And(exprs)           => optParentheses { ppNary(exprs, "", " && ", "") }
-      case Or(exprs)            => optParentheses { ppNary(exprs, "", " || ", "") }
-      case Not(Equals(l, r))    => optParentheses { ppBinary(l, r, " != ") }
-      case UMinus(expr)         => ppUnary(expr, "-(", ")")
-      case Equals(l,r)          => optParentheses { ppBinary(l, r, " == ") }
+      case And(exprs) => optParentheses { ppNary(exprs, "", " && ", "") }
+      case Or(exprs) => optParentheses { ppNary(exprs, "", " || ", "") }
+      case Not(Equals(l, r)) => optParentheses { ppBinary(l, r, " != ") }
+      case UMinus(expr) => ppUnary(expr, "-(", ")")
+      case Equals(l, r) => optParentheses { ppBinary(l, r, " == ") }
 
-      case IntLiteral(v)        => sb.append(v)
-      case BooleanLiteral(v)    => sb.append(v)
-      case StringLiteral(s)     => sb.append("\"" + s + "\"")
-      case UnitLiteral()        => sb.append("()")
+      case IntLiteral(v) => sb.append(v)
+      case BooleanLiteral(v) => sb.append(v)
+      case StringLiteral(s) => sb.append("\"" + s + "\"")
+      case UnitLiteral() => sb.append("()")
 
       /* These two aren't really supported in Scala, but we know how to encode them. */
-      case Implies(l,r)         => pp(Or(Not(l), r), p)
-      case Iff(l,r)             => optParentheses { ppBinary(l, r, " == ") }
+      case Implies(l, r) => pp(Or(Not(l), r), p)
+      case Iff(l, r) => optParentheses { ppBinary(l, r, " == ") }
 
-      case Tuple(exprs)         => ppNary(exprs, "(", ", ", ")")
-      case TupleSelect(t, i)    =>
+      case Tuple(exprs) => ppNary(exprs, "(", ", ", ")")
+      case TupleSelect(t, i) =>
         pp(t, p)
         sb.append("._" + i)
 
-      case Plus(l,r)            => optParentheses { ppBinary(l, r, " + ") }
-      case Minus(l,r)           => optParentheses { ppBinary(l, r, " - ") }
-      case Times(l,r)           => optParentheses { ppBinary(l, r, " * ") }
-      case Division(l,r)        => optParentheses { ppBinary(l, r, " / ") }
-      case Modulo(l,r)          => optParentheses { ppBinary(l, r, " % ") }
-      case LessThan(l,r)        => optParentheses { ppBinary(l, r, " < ") }
-      case GreaterThan(l,r)     => optParentheses { ppBinary(l, r, " > ") }
-      case LessEquals(l,r)      => optParentheses { ppBinary(l, r, " <= ") }
-      case GreaterEquals(l,r)   => optParentheses { ppBinary(l, r, " >= ") }
-      case fs @ FiniteSet(rs)        =>
+      case Plus(l, r) => optParentheses { ppBinary(l, r, " + ") }
+      case Minus(l, r) => optParentheses { ppBinary(l, r, " - ") }
+      case Times(l, r) => optParentheses { ppBinary(l, r, " * ") }
+      case Division(l, r) => optParentheses { ppBinary(l, r, " / ") }
+      case Modulo(l, r) => optParentheses { ppBinary(l, r, " % ") }
+      case LessThan(l, r) => optParentheses { ppBinary(l, r, " < ") }
+      case GreaterThan(l, r) => optParentheses { ppBinary(l, r, " > ") }
+      case LessEquals(l, r) => optParentheses { ppBinary(l, r, " <= ") }
+      case GreaterEquals(l, r) => optParentheses { ppBinary(l, r, " >= ") }
+      case fs @ FiniteSet(rs) =>
         if (rs.isEmpty) {
           fs.getType match {
             case SetType(b) =>
@@ -134,12 +134,12 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         } else {
           ppNary(rs, "Set(", ", ", ")")
         }
-      case FiniteMultiset(rs)   => ppNary(rs, "{|", ", ", "|}")
-      case EmptyMultiset(_)     => sys.error("Not Valid Scala")
-      case ElementOfSet(e, s)   => optParentheses { ppBinary(s, e, " contains ") }
-      case SetUnion(l,r)        => optParentheses { ppBinary(l, r, " ++ ") }
-      case SetDifference(l,r)   => optParentheses { ppBinary(l, r, " -- ") }
-      case SetIntersection(l,r) => optParentheses { ppBinary(l, r, " & ") }
+      case FiniteMultiset(rs) => ppNary(rs, "{|", ", ", "|}")
+      case EmptyMultiset(_) => sys.error("Not Valid Scala")
+      case ElementOfSet(e, s) => optParentheses { ppBinary(s, e, " contains ") }
+      case SetUnion(l, r) => optParentheses { ppBinary(l, r, " ++ ") }
+      case SetDifference(l, r) => optParentheses { ppBinary(l, r, " -- ") }
+      case SetIntersection(l, r) => optParentheses { ppBinary(l, r, " & ") }
       case SetMin(s) =>
         pp(s, p)
         sb.append(".min")
@@ -151,16 +151,18 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         sb.append("{")
         val sz = rs.size
         var c = 0
-        rs.foreach{case (k, v) => {
-          pp(k, p); sb.append(" -> "); pp(v, p); c += 1 ; if(c < sz) sb.append(", ")
-        }}
+        rs.foreach {
+          case (k, v) => {
+            pp(k, p); sb.append(" -> "); pp(v, p); c += 1; if (c < sz) sb.append(", ")
+          }
+        }
         sb.append("}")
 
-      case MapGet(m,k) =>
+      case MapGet(m, k) =>
         pp(m, p)
         ppNary(Seq(k), "(", ",", ")")
 
-      case MapIsDefinedAt(m,k) => {
+      case MapIsDefinedAt(m, k) => {
         pp(m, p)
         sb.append(".isDefinedAt")
         ppNary(Seq(k), "(", ",", ")")
@@ -200,19 +202,19 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
       case Distinct(exprs) =>
         sb.append("distinct")
         ppNary(exprs, "(", ", ", ")")
-      
+
       case IfExpr(c, t, e) =>
         optParentheses {
           sb.append("if (")
           pp(c, p)
           sb.append(") {\n")
-          ind(lvl+1)
-          pp(t, p)(lvl+1)
+          ind(lvl + 1)
+          pp(t, p)(lvl + 1)
           sb.append("\n")
           ind(lvl)
           sb.append("} else {\n")
-          ind(lvl+1)
-          pp(e, p)(lvl+1)
+          ind(lvl + 1)
+          pp(e, p)(lvl + 1)
           sb.append("\n")
           ind(lvl)
           sb.append("}")
@@ -222,16 +224,16 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         optParentheses {
           sb.append("choose { (")
           for (((id, tpe), i) <- ids.map(id => (id, id.getType)).zipWithIndex) {
-              pp(id, p)
-              sb.append(": ")
-              pp(tpe, p)
-              if (i != ids.size-1) {
-                  sb.append(", ")
-              }
+            pp(id, p)
+            sb.append(": ")
+            pp(tpe, p)
+            if (i != ids.size - 1) {
+              sb.append(", ")
+            }
           }
           sb.append(") =>\n")
-          ind(lvl+1)
-          pp(pred, p)(lvl+1)
+          ind(lvl + 1)
+          pp(pred, p)(lvl + 1)
           sb.append("\n")
           ind(lvl)
           sb.append("}")
@@ -243,8 +245,8 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
           sb.append(" match {\n")
 
           csc.foreach { cs =>
-            ind(lvl+1)
-            pp(cs, p)(lvl+1)
+            ind(lvl + 1)
+            pp(cs, p)(lvl + 1)
             sb.append("\n")
           }
 
@@ -253,7 +255,8 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         }
       }
 
-      case Not(expr) => sb.append("!"); optParentheses { pp(expr, p) }
+      case Not(expr) =>
+        sb.append("!"); optParentheses { pp(expr, p) }
 
       case e @ Error(desc) => {
         sb.append("leon.lang.error[")
@@ -276,9 +279,9 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         val sz = defs.size
 
         defs.foreach(df => {
-          ind(lvl+1)
-          pp(df, p)(lvl+1)
-          if(c < sz - 1) {
+          ind(lvl + 1)
+          pp(df, p)(lvl + 1)
+          if (c < sz - 1) {
             sb.append("\n\n")
           }
           c = c + 1
@@ -306,20 +309,20 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
         sb.append(": ")
         pp(fd.returnType, p)
         sb.append(" = {\n")
-        ind(lvl+1)
+        ind(lvl + 1)
 
         fd.precondition match {
           case None =>
           case Some(prec) =>
             sb.append("require(")
-            pp(prec, p)(lvl+1)
+            pp(prec, p)(lvl + 1)
             sb.append(");\n")
-            ind(lvl+1)
+            ind(lvl + 1)
         }
 
         fd.body match {
           case Some(body) =>
-            pp(body, p)(lvl+1)
+            pp(body, p)(lvl + 1)
           case None =>
             sb.append("???")
         }
@@ -361,9 +364,9 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
     case (_: ElementOfSet) => 0
     case (_: Or) => 1
     case (_: And) => 3
-    case (_: GreaterThan | _: GreaterEquals  | _: LessEquals | _: LessThan) => 4
+    case (_: GreaterThan | _: GreaterEquals | _: LessEquals | _: LessThan) => 4
     case (_: Equals | _: Iff | _: Not) => 5
-    case (_: Plus | _: Minus | _: SetUnion| _: SetDifference) => 6
+    case (_: Plus | _: Minus | _: SetUnion | _: SetDifference) => 6
     case (_: Times | _: Division | _: Modulo) => 7
     case _ => 7
   }
