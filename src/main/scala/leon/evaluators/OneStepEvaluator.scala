@@ -287,6 +287,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         if (!isLiteral(scrutinee)) {
           MatchExpr(le(scrutinee), cases)
         } else {
+          var bindersMap:Map[Identifier, Expr] = Map()
           def checkSubPatterns(subPatterns: Seq[Pattern], ex: Expr): Boolean = ex match {
             case CaseClass(_, args) =>
               assert(args.size == subPatterns.size)
@@ -296,22 +297,22 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
           def checkPattern(pattern: Pattern, ex: Expr): Boolean = pattern match {
             case InstanceOfPattern(Some(binder), ct) if (ex.getType == ct) =>
-              rctx.withNewVar(binder, ex)
+              bindersMap += (binder -> ex)
               true
             case InstanceOfPattern(None, ct) if (ex.getType == ct) =>
               true
             case WildcardPattern(Some(binder)) =>
-              rctx.withNewVar(binder, ex)
+              bindersMap += (binder -> ex)
               true
             case WildcardPattern(None) =>
               true
             case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct && checkSubPatterns(subPatterns, ex)) =>
-              rctx.withNewVar(binder, ex)
+              bindersMap += (binder -> ex)
               true
             case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
               checkSubPatterns(subPatterns, ex)
             case TuplePattern(Some(binder), subPatterns) if (checkSubPatterns(subPatterns, ex)) =>
-              rctx.withNewVar(binder, ex)
+              bindersMap += (binder -> ex)
               true
             case TuplePattern(None, subPatterns) =>
               checkSubPatterns(subPatterns, ex)
@@ -342,7 +343,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
           findMatchingCases(cases, scrutinee) match {
             case Nil => throw new EvalError("The expression " + scrutinee + " has no match.")
-            case Seq(matchingCase: MatchCase) => matchingCase.rhs
+            case Seq(matchingCase: MatchCase) => replaceFromIDs(bindersMap, matchingCase.rhs)
           }
 
         }
