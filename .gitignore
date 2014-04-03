@@ -14,3 +14,11 @@ derivation*.dot
 
 # leon
 last.log
+
+# eclipse
+.project
+.classpath
+.cache
+.settings/
+.z3-trace
+hs_err_pid*.log
