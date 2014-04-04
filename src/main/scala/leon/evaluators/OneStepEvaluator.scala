@@ -16,11 +16,9 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
   override val description = "One-step interpreter for PureScala expressions"
 
   type RC = DefaultRecContext
-  type SC = SymbolRecContext
   type GC = DefaultGlobalContext
 
   def initRC(mappings: Map[Identifier, Expr]) = DefaultRecContext(mappings)
-  def initSC(symbols: Map[Identifier, Option[Expr]]) = SymbolRecContext(symbols)
   def initGC = new DefaultGlobalContext(false, stepsLeft = -1)
 
   case class DefaultRecContext(mappings: Map[Identifier, Expr]) extends RecContext {
@@ -28,16 +26,10 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
     def withVars(news: Map[Identifier, Expr]) = copy(news)
   }
-  
-  case class SymbolRecContext(symbols: Map[Identifier, Option[Expr]]) extends RecContext {
-    def withNewID(id: Identifier, e: Option[Expr]) = copy(symbols + (id -> e))
-
-    def withIDs(news: Map[Identifier, Option[Expr]]) = copy(news)
-  }
 
   class DefaultGlobalContext(var madeStep: Boolean, stepsLeft: Int) extends GlobalContext(stepsLeft) {}
 
-  def le(expr: Expr)(implicit rctx: RC, gctx: GC, sctx: SC): Expr = {
+  def le(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
     if (gctx.madeStep) {
       expr
     } else {
@@ -49,14 +41,14 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     gctx.madeStep
   }
 
-  override def e(expr: Expr)(implicit rctx: RC, gctx: GC, sctx: SC): Expr = {
+  override def e(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
     val res = expr match {
       case v @ Variable(id) =>
-        (rctx.mappings.get(id), sctx.symbols.get(id)) match {
-          case (Some(value), _) => value
-          case (None, Some(Some(e))) if canMakeStep(e) => e
-          case (None, Some(_)) => v
-          case (None, None) => throw EvalError("No value for identifier " + id.name + " in mapping.")
+        rctx.mappings.get(id) match {
+          case Some(value) if isLiteral(value) => value
+          case Some(value) if canMakeStep(value) => value
+          case Some(_) => v
+          case None => throw EvalError("No value for identifier " + id.name + " in mapping.")
         }
 
       case Tuple(ts) =>
@@ -77,7 +69,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         } else if(canMakeStep(ex)) {
           Let(i, le(ex), b)
         } else {
-          sctx.withNewID(i, Some(ex))
+          rctx.withNewVar(i, ex)
           b
         }
 
@@ -113,7 +105,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             if(isLiteral(t._2)) {
               litMap += (t._1 -> t._2)
             } else {
-              sctx.withNewID(t._1, Some(t._2))
+              rctx.withNewVar(t._1, t._2)
             }
           )
           if(tfd.hasBody)
@@ -385,10 +377,10 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     res
   }
 
-  def canMakeStep(e: Expr)(implicit rctx: RC, sctx: SC): Boolean = e match {
-    case Variable(id) => rctx.mappings.contains(id) || sctx.symbols.contains(id)
+  def canMakeStep(e: Expr)(implicit rctx: RC): Boolean = e match {
+    case Variable(id) => rctx.mappings.contains(id)
     case Tuple(ts) => ts.exists(canMakeStep)
-    case Let(i, ex, b) => canMakeStep(ex) || sctx.symbols.contains(i)
+    case Let(i, ex, b) => canMakeStep(ex) || rctx.mappings.contains(i)
     case FunctionInvocation(tfd, args) => args.forall(isLiteral) || args.exists(canMakeStep)
     case IfExpr(cond, thenn, elze) => isLiteral(cond) || canMakeStep(cond)
     case And(args) => args.forall(isLiteral) || args.exists(canMakeStep)
