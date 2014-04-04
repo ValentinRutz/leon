@@ -11,15 +11,16 @@ import purescala.TypeTrees._
 import solvers.TimeoutSolver
 import xlang.Trees._
 
-// TODO Insert symbolics
 class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluator(ctx, prog) {
   override val name = "one-step evaluator"
   override val description = "One-step interpreter for PureScala expressions"
 
   type RC = DefaultRecContext
+  type SC = SymbolRecContext
   type GC = DefaultGlobalContext
 
   def initRC(mappings: Map[Identifier, Expr]) = DefaultRecContext(mappings)
+  def initSC(symbols: Map[Identifier, Option[Expr]]) = SymbolRecContext(symbols)
   def initGC = new DefaultGlobalContext(false, stepsLeft = -1)
 
   case class DefaultRecContext(mappings: Map[Identifier, Expr]) extends RecContext {
@@ -27,10 +28,16 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
     def withVars(news: Map[Identifier, Expr]) = copy(news)
   }
+  
+  case class SymbolRecContext(symbols: Map[Identifier, Option[Expr]]) extends RecContext {
+    def withNewID(id: Identifier, e: Option[Expr]) = copy(symbols + (id -> e))
+
+    def withIDs(news: Map[Identifier, Option[Expr]]) = copy(news)
+  }
 
   class DefaultGlobalContext(var madeStep: Boolean, stepsLeft: Int) extends GlobalContext(stepsLeft) {}
 
-  def le(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
+  def le(expr: Expr)(implicit rctx: RC, gctx: GC, sctx: SC): Expr = {
     if (gctx.madeStep) {
       expr
     } else {
@@ -42,14 +49,14 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     gctx.madeStep
   }
 
-  override def e(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
+  override def e(expr: Expr)(implicit rctx: RC, gctx: GC, sctx: SC): Expr = {
     val res = expr match {
-      case Variable(id) =>
-        rctx.mappings.get(id) match {
-          case Some(v) =>
-            v
-          case None =>
-            throw EvalError("No value for identifier " + id.name + " in mapping.")
+      case v @ Variable(id) =>
+        (rctx.mappings.get(id), sctx.symbols.get(id)) match {
+          case (Some(value), _) => value
+          case (None, Some(Some(e))) if canMakeStep(e) => e
+          case (None, Some(_)) => v
+          case (None, None) => throw EvalError("No value for identifier " + id.name + " in mapping.")
         }
 
       case Tuple(ts) =>
@@ -67,19 +74,23 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       case Let(i, ex, b) =>
         if (isLiteral(ex)) {
           replace(Map(Variable(i) -> ex), b)
-        } else {
+        } else if(canMakeStep(ex)) {
           Let(i, le(ex), b)
+        } else {
+          sctx.withNewID(i, Some(ex))
+          b
         }
 
       case FunctionInvocation(tfd, args) =>
-        if (args.forall(isLiteral)) {
+        def processFunction(tfd: TypedFunDef, args: Seq[Expr]): Expr = {
           if (tfd.hasBody) {
             var body: Expr = replaceFromIDs((tfd.params.map(_.id) zip args).toMap, tfd.body.get)
             if (tfd.hasPostcondition) {
               val freshID = FreshIdentifier("result").setType(tfd.returnType)
               val checkPost =
-                IfExpr(replaceFromIDs(Map(tfd.postcondition.get._1 -> Variable(freshID)), tfd.postcondition.get._2),
-                  Variable(freshID), new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
+                IfExpr(replaceFromIDs(Map(tfd.postcondition.get._1 -> Variable(freshID)),
+                  tfd.postcondition.get._2), Variable(freshID),
+                    new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
               body = Let(freshID, body, checkPost)
             }
             if (tfd.hasPrecondition) {
@@ -91,6 +102,23 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
           } else {
             throw new EvalError("function %s has no body".format(tfd.fd.id.name))
           }
+        }
+        
+        if (args.forall(isLiteral)) {
+          processFunction(tfd, args)
+        } else if(!args.exists(canMakeStep)){
+          val argsMap = (tfd.params.map(_.id) zip args).toMap
+          var litMap: Map[Identifier, Expr] = Map()
+          argsMap.foreach(t =>
+            if(isLiteral(t._2)) {
+              litMap += (t._1 -> t._2)
+            } else {
+              sctx.withNewID(t._1, Some(t._2))
+            }
+          )
+          if(tfd.hasBody)
+          	tfd.fd.body = Some(replaceFromIDs(litMap, tfd.body.get))
+          processFunction(tfd, args)
         } else {
           FunctionInvocation(tfd, args.map(le))
         }
@@ -283,12 +311,12 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
       case f @ FiniteSet(els) => FiniteSet(els.map(le(_)).distinct).setType(f.getType)
 
-      //TODO Replace matching patterns in right hand side of case
       case m @ MatchExpr(scrutinee, cases: Seq[MatchCase]) =>
         if (!isLiteral(scrutinee)) {
           MatchExpr(le(scrutinee), cases)
         } else {
           var bindersMap:Map[Identifier, Expr] = Map()
+          
           def checkSubPatterns(subPatterns: Seq[Pattern], ex: Expr): Boolean = ex match {
             case CaseClass(_, args) =>
               assert(args.size == subPatterns.size)
@@ -352,12 +380,48 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       case e => e
     }
     if (res != expr) {
-      res.previousState = Some(expr)
       gctx.madeStep = true
     }
     res
   }
 
+  def canMakeStep(e: Expr)(implicit rctx: RC, sctx: SC): Boolean = e match {
+    case Variable(id) => rctx.mappings.contains(id) || sctx.symbols.contains(id)
+    case Tuple(ts) => ts.exists(canMakeStep)
+    case Let(i, ex, b) => canMakeStep(ex) || sctx.symbols.contains(i)
+    case FunctionInvocation(tfd, args) => args.forall(isLiteral) || args.exists(canMakeStep)
+    case IfExpr(cond, thenn, elze) => isLiteral(cond) || canMakeStep(cond)
+    case And(args) => args.forall(isLiteral) || args.exists(canMakeStep)
+    case Or(args) => args.forall(isLiteral) || args.exists(canMakeStep)
+    case Not(arg) => isLiteral(arg) || canMakeStep(arg)
+    case Implies(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case Iff(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case Equals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case CaseClass(cd, args) => args.exists(canMakeStep)
+    case CaseClassInstanceOf(cct, ex) => canMakeStep(ex)
+    case CaseClassSelector(ct1, ex, sel) => canMakeStep(ex)
+    case Plus(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case Minus(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case UMinus(ex) => isLiteral(ex) || canMakeStep(ex)
+    case Times(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case Division(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case Modulo(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case LessThan(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case GreaterThan(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case LessEquals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case GreaterEquals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
+    case SetUnion(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
+    case SetIntersection(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
+    case SetDifference(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
+    case ElementOfSet(el, s) => (isLiteral(el) && isLiteral(s)) || canMakeStep(el) || canMakeStep(s)
+    case SubsetOf(s1, s2) =>  (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
+    case SetCardinality(s) => canMakeStep(s)
+    case FiniteSet(els) => els.forall(isLiteral) || els.exists(canMakeStep)
+    case MatchExpr(scrutinee, cases: Seq[MatchCase]) => canMakeStep(scrutinee)
+    case _: Literal[_] => false
+    case _ => false 
+  }
+  
   def isLiteral(e: Expr): Boolean = e match {
     case Variable(_) => false
     case Tuple(ts) =>
