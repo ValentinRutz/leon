@@ -45,8 +45,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     val res = expr match {
       case v @ Variable(id) =>
         rctx.mappings.get(id) match {
-          case Some(value) if isLiteral(value) => value
-          case Some(value) if canMakeStep(value) => value
+          case Some(value) if isLiteral(value) || canMakeStep(value)=> value
           case Some(_) => v
           case None => throw EvalError("No value for identifier " + id.name + " in mapping.")
         }
@@ -64,29 +63,27 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         }
 
       case Let(i, ex, b) =>
-        if (isLiteral(ex)) {
-          replace(Map(Variable(i) -> ex), b)
-        } else if(canMakeStep(ex)) {
-          Let(i, le(ex), b)
-        } else {
+        if (isLiteral(ex) || ! canMakeStep(ex)) {
           rctx.withNewVar(i, ex)
           b
+        } else {
+          Let(i, le(ex), b)
         }
 
       case FunctionInvocation(tfd, args) =>
         def processFunction(tfd: TypedFunDef, args: Seq[Expr]): Expr = {
           if (tfd.hasBody) {
-            var body: Expr = replaceFromIDs((tfd.params.map(_.id) zip args).toMap, tfd.body.get)
+            val argsMap = (tfd.params.map(_.id) zip args).toMap
+            var body: Expr = replaceFromIDs(argsMap, tfd.body.get)
             if (tfd.hasPostcondition) {
               val freshID = FreshIdentifier("result").setType(tfd.returnType)
               val checkPost =
-                IfExpr(replaceFromIDs(Map(tfd.postcondition.get._1 -> Variable(freshID)),
+                IfExpr(replaceFromIDs(argsMap + (tfd.postcondition.get._1 -> Variable(freshID)),
                   tfd.postcondition.get._2), Variable(freshID),
                     new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
               body = Let(freshID, body, checkPost)
             }
             if (tfd.hasPrecondition) {
-              val argsMap = (tfd.params.map(_.id) zip args).toMap
               body = IfExpr(replaceFromIDs(argsMap, tfd.precondition.get), replaceFromIDs(argsMap, body),
                 new Error("Violation of the precondition of " + tfd.fd.id.name).setType(tfd.returnType))
             }
@@ -409,7 +406,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
     case SubsetOf(s1, s2) =>  (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
     case SetCardinality(s) => canMakeStep(s)
     case FiniteSet(els) => els.forall(isLiteral) || els.exists(canMakeStep)
-    case MatchExpr(scrutinee, cases: Seq[MatchCase]) => canMakeStep(scrutinee)
+    case MatchExpr(scrutinee, cases: Seq[MatchCase]) => isLiteral(scrutinee) || canMakeStep(scrutinee)
     case _: Literal[_] => false
     case _ => false 
   }

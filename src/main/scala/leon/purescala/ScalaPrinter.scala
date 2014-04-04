@@ -376,7 +376,7 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
     case (_, Some(_: Definition)) => false
     case (_, Some(_: MatchCase | _: Let | _: LetTuple | _: LetDef | _: IfExpr)) => false
     case (_, Some(_: FunctionInvocation)) => false
-    case (ie: IfExpr, _) => true
+    case (_: IfExpr | _: MatchExpr | _: FunctionInvocation, _) => true
     case (e1: Expr, Some(e2: Expr)) if precedence(e1) > precedence(e2) => false
     case (_, _) => true
   }
