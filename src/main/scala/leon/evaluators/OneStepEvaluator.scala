@@ -46,8 +46,9 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       case v @ Variable(id) =>
         rctx.mappings.get(id) match {
           case Some(value) if isLiteral(value) || canMakeStep(value)=> value
-          case Some(_) => v
-          case None => throw EvalError("No value for identifier " + id.name + " in mapping.")
+          case _ => v
+//          case Some(_) => v
+//          case None => throw EvalError("No value for identifier " + id.name + " in mapping.")
         }
 
       case Tuple(ts) =>
@@ -95,7 +96,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         
         if (args.forall(isLiteral)) {
           processFunction(tfd, args)
-        } else if(!args.exists(canMakeStep)){
+        } else if(!args.exists(canMakeStep)) {
           val argsMap = (tfd.params.map(_.id) zip args).toMap
           var litMap: Map[Identifier, Expr] = Map()
           argsMap.foreach(t =>
@@ -377,8 +378,8 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
   def canMakeStep(e: Expr)(implicit rctx: RC): Boolean = e match {
     case Variable(id) => rctx.mappings.contains(id)
     case Tuple(ts) => ts.exists(canMakeStep)
-    case Let(i, ex, b) => canMakeStep(ex) || rctx.mappings.contains(i)
-    case FunctionInvocation(tfd, args) => args.forall(isLiteral) || args.exists(canMakeStep)
+    case Let(i, ex, b) => true
+    case FunctionInvocation(tfd, args) => true
     case IfExpr(cond, thenn, elze) => isLiteral(cond) || canMakeStep(cond)
     case And(args) => args.forall(isLiteral) || args.exists(canMakeStep)
     case Or(args) => args.forall(isLiteral) || args.exists(canMakeStep)
