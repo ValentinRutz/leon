@@ -43,13 +43,7 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
   override def e(expr: Expr)(implicit rctx: RC, gctx: GC): Expr = {
     val res = expr match {
-      case v @ Variable(id) =>
-        rctx.mappings.get(id) match {
-          case Some(value) if isLiteral(value) || canMakeStep(value)=> value
-          case _ => v
-//          case Some(_) => v
-//          case None => throw EvalError("No value for identifier " + id.name + " in mapping.")
-        }
+      case v @ Variable(id) => v
 
       case Tuple(ts) =>
         val tsRec = ts.map(le)
@@ -63,54 +57,27 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
             r
         }
 
-      case Let(i, ex, b) =>
-        if (isLiteral(ex) || ! canMakeStep(ex)) {
-          rctx.withNewVar(i, ex)
-          b
-        } else {
-          Let(i, le(ex), b)
-        }
+      case Let(i, ex, b) => replaceFromIDs(Map(i -> ex), b)
 
       case FunctionInvocation(tfd, args) =>
-        def processFunction(tfd: TypedFunDef, args: Seq[Expr]): Expr = {
-          if (tfd.hasBody) {
-            val argsMap = (tfd.params.map(_.id) zip args).toMap
-            var body: Expr = replaceFromIDs(argsMap, tfd.body.get)
-            if (tfd.hasPostcondition) {
-              val freshID = FreshIdentifier("result").setType(tfd.returnType)
-              val checkPost =
-                IfExpr(replaceFromIDs(argsMap + (tfd.postcondition.get._1 -> Variable(freshID)),
-                  tfd.postcondition.get._2), Variable(freshID),
-                    new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
-              body = Let(freshID, body, checkPost)
-            }
-            if (tfd.hasPrecondition) {
-              body = IfExpr(replaceFromIDs(argsMap, tfd.precondition.get), replaceFromIDs(argsMap, body),
-                new Error("Violation of the precondition of " + tfd.fd.id.name).setType(tfd.returnType))
-            }
-            body
-          } else {
-            throw new EvalError("function %s has no body".format(tfd.fd.id.name))
-          }
-        }
-        
-        if (args.forall(isLiteral)) {
-          processFunction(tfd, args)
-        } else if(!args.exists(canMakeStep)) {
+        if (tfd.hasBody) {
           val argsMap = (tfd.params.map(_.id) zip args).toMap
-          var litMap: Map[Identifier, Expr] = Map()
-          argsMap.foreach(t =>
-            if(isLiteral(t._2)) {
-              litMap += (t._1 -> t._2)
-            } else {
-              rctx.withNewVar(t._1, t._2)
-            }
-          )
-          if(tfd.hasBody)
-          	tfd.fd.body = Some(replaceFromIDs(litMap, tfd.body.get))
-          processFunction(tfd, args)
+          var body: Expr = replaceFromIDs(argsMap, tfd.body.get)
+          if (tfd.hasPostcondition) {
+            val freshID = FreshIdentifier("result").setType(tfd.returnType)
+            val checkPost =
+              IfExpr(replaceFromIDs(argsMap + (tfd.postcondition.get._1 -> Variable(freshID)),
+                tfd.postcondition.get._2), Variable(freshID),
+                  new Error("Violation of postcondition of %s".format(tfd.id.name)).setType(tfd.returnType))
+            body = Let(freshID, body, checkPost)
+          }
+          if (tfd.hasPrecondition) {
+            body = IfExpr(replaceFromIDs(argsMap, tfd.precondition.get), replaceFromIDs(argsMap, body),
+              new Error("Violation of the precondition of " + tfd.fd.id.name).setType(tfd.returnType))
+          }
+          body
         } else {
-          FunctionInvocation(tfd, args.map(le))
+          throw new EvalError("function %s has no body".format(tfd.fd.id.name))
         }
 
       case IfExpr(cond, thenn, elze) =>
@@ -373,43 +340,6 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
       gctx.madeStep = true
     }
     res
-  }
-
-  def canMakeStep(e: Expr)(implicit rctx: RC): Boolean = e match {
-    case Variable(id) => rctx.mappings.contains(id)
-    case Tuple(ts) => ts.exists(canMakeStep)
-    case Let(i, ex, b) => true
-    case FunctionInvocation(tfd, args) => true
-    case IfExpr(cond, thenn, elze) => isLiteral(cond) || canMakeStep(cond)
-    case And(args) => args.forall(isLiteral) || args.exists(canMakeStep)
-    case Or(args) => args.forall(isLiteral) || args.exists(canMakeStep)
-    case Not(arg) => isLiteral(arg) || canMakeStep(arg)
-    case Implies(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case Iff(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case Equals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case CaseClass(cd, args) => args.exists(canMakeStep)
-    case CaseClassInstanceOf(cct, ex) => canMakeStep(ex)
-    case CaseClassSelector(ct1, ex, sel) => canMakeStep(ex)
-    case Plus(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case Minus(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case UMinus(ex) => isLiteral(ex) || canMakeStep(ex)
-    case Times(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case Division(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case Modulo(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case LessThan(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case GreaterThan(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case LessEquals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case GreaterEquals(l, r) => (isLiteral(l) && isLiteral(r)) || canMakeStep(l) || canMakeStep(r)
-    case SetUnion(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
-    case SetIntersection(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
-    case SetDifference(s1, s2) => (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
-    case ElementOfSet(el, s) => (isLiteral(el) && isLiteral(s)) || canMakeStep(el) || canMakeStep(s)
-    case SubsetOf(s1, s2) =>  (isLiteral(s1) && isLiteral(s2)) || canMakeStep(s1) || canMakeStep(s2)
-    case SetCardinality(s) => canMakeStep(s)
-    case FiniteSet(els) => els.forall(isLiteral) || els.exists(canMakeStep)
-    case MatchExpr(scrutinee, cases: Seq[MatchCase]) => isLiteral(scrutinee) || canMakeStep(scrutinee)
-    case _: Literal[_] => false
-    case _ => false 
   }
   
   def isLiteral(e: Expr): Boolean = e match {

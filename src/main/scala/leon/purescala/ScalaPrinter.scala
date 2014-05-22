@@ -75,7 +75,7 @@ class ScalaPrinter(opts: PrinterOptions, sb: StringBuffer = new StringBuffer) ex
 
       case Let(b, d, e) =>
         optBraces { implicit lvl =>
-          sb.append("val " + b + " = ")
+          sb.append("val " + b + " : " + d.getType + " = ")
           pp(d, p)
           sb.append("\n")
           ind
