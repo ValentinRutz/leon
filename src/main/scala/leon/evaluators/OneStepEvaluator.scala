@@ -94,7 +94,6 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         args.head match {
           case BooleanLiteral(false) =>
             BooleanLiteral(false)
-
           case BooleanLiteral(true) =>
             if (args.size == 1) {
               BooleanLiteral(true)
@@ -190,14 +189,14 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
 
       case Division(l, r) =>
         (l, r) match {
-          case (_, IntLiteral(i2)) if i2 == 0 => Error("Division by 0")
+          case (_, IntLiteral(0)) => Error("Division by 0").setType(Int32Type)
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 / i2)
           case (l, r) => Division(le(l), le(r))
         }
 
       case Modulo(l, r) =>
         (l, r) match {
-          case (_, IntLiteral(i2)) if i2 == 0 => Error("Modulo by 0")
+          case (_, IntLiteral(0)) => new Error("Modulo by 0").setType(Int32Type)
           case (IntLiteral(i1), IntLiteral(i2)) => IntLiteral(i1 % i2)
           case (l, r) => Modulo(le(l), le(r))
         }
@@ -274,46 +273,63 @@ class OneStepEvaluator(ctx: LeonContext, prog: Program) extends RecursiveEvaluat
         } else {
           var bindersMap:Map[Identifier, Expr] = Map()
           
-          def checkSubPatterns(subPatterns: Seq[Pattern], ex: Expr): Boolean = ex match {
+          def checkSubPatterns(subPatterns: Seq[Pattern], ex: Expr, guard: Option[Expr]): Boolean = ex match {
             case CaseClass(_, args) =>
               assert(args.size == subPatterns.size)
-              (args zip subPatterns).forall(t => checkPattern(t._2, t._1))
+              (args zip subPatterns).forall(t => checkPattern(t._2, t._1, guard))
+            case Tuple(exprs: Seq[Expr]) =>
+              assert(exprs.size == subPatterns.size)
+              (exprs zip subPatterns).forall(t => checkPattern(t._2, t._1, guard))
             case _ => false
           }
 
-          def checkPattern(pattern: Pattern, ex: Expr): Boolean = pattern match {
+          def checkPattern(pattern: Pattern, ex: Expr, guard: Option[Expr]): Boolean = pattern match {
             case InstanceOfPattern(Some(binder), ct) if (ex.getType == ct) =>
               bindersMap += (binder -> ex)
-              true
+              if(guard.isDefined) {
+                le(replaceFromIDs(bindersMap, guard.get)) match {
+                  case BooleanLiteral(a) => return a
+                }
+              } else true
             case InstanceOfPattern(None, ct) if (ex.getType == ct) =>
               true
+            case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct && checkSubPatterns(subPatterns, ex, guard)) =>
+              bindersMap += (binder -> ex)
+              if(guard.isDefined) {
+                le(replaceFromIDs(bindersMap, guard.get)) match {
+                  case BooleanLiteral(a) => return a
+                }
+              } else true
+            case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
+              checkSubPatterns(subPatterns, ex, guard)
+            case TuplePattern(Some(binder), subPatterns) if (checkSubPatterns(subPatterns, ex, guard)) =>
+              bindersMap += (binder -> ex)
+              if(guard.isDefined) {
+                le(replaceFromIDs(bindersMap, guard.get)) match {
+                  case BooleanLiteral(a) => return a
+                }
+              } else true
+            case TuplePattern(None, subPatterns) =>
+              checkSubPatterns(subPatterns, ex, guard)
             case WildcardPattern(Some(binder)) =>
               bindersMap += (binder -> ex)
-              true
+              if(guard.isDefined) {
+                le(replaceFromIDs(bindersMap, guard.get)) match {
+                  case BooleanLiteral(a) => return a
+                }
+              } else true
             case WildcardPattern(None) =>
               true
-            case CaseClassPattern(Some(binder), ct, subPatterns) if (ex.getType == ct && checkSubPatterns(subPatterns, ex)) =>
-              bindersMap += (binder -> ex)
-              true
-            case CaseClassPattern(None, ct, subPatterns) if (ex.getType == ct) =>
-              checkSubPatterns(subPatterns, ex)
-            case TuplePattern(Some(binder), subPatterns) if (checkSubPatterns(subPatterns, ex)) =>
-              bindersMap += (binder -> ex)
-              true
-            case TuplePattern(None, subPatterns) =>
-              checkSubPatterns(subPatterns, ex)
             case _ => false
           }
 
           def checkMatchCase(c: MatchCase, ex: Expr): MatchCase = c match {
-            case sc @ SimpleCase(pattern, rhs) if (checkPattern(pattern, ex)) =>
+            case sc @ SimpleCase(pattern, rhs) if (checkPattern(pattern, ex, None)) =>
               sc
-            case GuardedCase(pattern, guard, rhs) if (checkPattern(pattern, ex)) =>
-              le(guard) match {
-                case BooleanLiteral(true) => SimpleCase(pattern, rhs)
-                case BooleanLiteral(false) => null
-                case g => GuardedCase(pattern, g, rhs)
-              }
+            case gc @ GuardedCase(pattern, guard, rhs) =>
+              if (checkPattern(pattern, ex, Some(guard))) {
+                gc
+              } else null
             case _ => null
           }
 
